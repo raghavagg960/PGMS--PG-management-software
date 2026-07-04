@@ -1,0 +1,23 @@
+# Exclude Python Virtual Environment completely
+env/
+.venv/
+venv/
+
+# Exclude compiled Python files
+**/__pycache__/
+*.pyc
+
+# Exclude local databases & storage
+**/db.sqlite3
+**/media/
+**/staticfiles/
+
+# Exclude frontend dependencies and build builds
+**/node_modules/
+**/dist/
+
+# System/IDE clutter
+.vscode/
+.idea/
+.DS_Store
+*.env
