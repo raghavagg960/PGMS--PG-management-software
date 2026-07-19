@@ -32,15 +32,6 @@ function App() {
                                     </div>
                                 </main>
                             </div>
-
-                            <div className="p-8 font-sans max-w-4xl mx-auto">
-                                <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-200">
-                                    <h1 className="text-2xl font-bold text-slate-800">Welcome to your PGMS Dashboard!</h1>
-                                    <p className="text-slate-600 mt-2">Your multi-tenant network security layers are active.</p>
-                                </div>
-                            </div>
-
-
                         </ProtectedRoute>
                     } />
 
