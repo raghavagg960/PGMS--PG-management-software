@@ -51,4 +51,7 @@ class PGPropertySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PGProperty
-        fields = ['id', 'owner', 'name', 'address', 'total_floors', 'created_at']
+        fields = [
+            'id', 'owner', 'name', 'address', 'total_floors', 
+            'total_rooms', 'total_beds', 'occupied_beds', 'status', 'created_at'
+        ]

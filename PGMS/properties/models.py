@@ -27,6 +27,10 @@ class PGProperty(models.Model):
     address = models.TextField()
     total_floors = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
+    total_rooms = models.PositiveIntegerField(default=0)
+    total_beds = models.PositiveIntegerField(default=0)
+    occupied_beds = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=50, default='Active')
 
     class Meta:
         verbose_name_plural = "PG Properties"
