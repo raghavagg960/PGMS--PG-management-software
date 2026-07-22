@@ -16,14 +16,13 @@ class RoomSerializer(serializers.ModelSerializer):
 class RoomDetailSerializer(serializers.ModelSerializer):
     """ Ultimate serializer for the dashboard layout (Rooms + Live Occupants) """
     sharing_display = serializers.CharField(source='get_sharing_type_display', read_only=True)
-    # Automatically collects guests belonging to this room via the model's related_name='guests'
     guests = GuestMinimalSerializer(many=True, read_only=True)
     current_occupancy = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
         fields = [
-            'id', 'floor_number', 'room_number', 'sharing_display', 
+            'id', 'property', 'floor_number', 'room_number', 'sharing_display', 
             'has_ac', 'has_attached_bathroom', 'total_beds', 'guests', 'current_occupancy'
         ]
 

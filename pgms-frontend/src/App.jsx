@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import PropertiesView from './components/PropertiesView';
 import RoomsView from './components/RoomsView';
+import GuestsView from './components/GuestsView';
 
 // Higher-Order Guard Component to lock down secure dashboard sub-routes
 const ProtectedRoute = ({ children }) => {
@@ -43,7 +44,7 @@ const MainDashboardView = () => (
 
 
 
-const GuestsView = () => <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-xl font-semibold text-slate-700">Guests & Tenants Management (Coming Soon)</div>;
+
 const StaffView = () => <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-xl font-semibold text-slate-700">Staff & Payroll Management (Coming Soon)</div>;
 const SettingsView = () => <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 text-xl font-semibold text-slate-700">System Configuration Layouts (Coming Soon)</div>;
 
