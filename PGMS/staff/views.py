@@ -9,4 +9,8 @@ class StaffViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Staff.objects.filter(property__owner=self.request.user)
+        queryset = Staff.objects.filter(property__owner=self.request.user)
+        property_id = self.request.query_params.get('property')
+        if property_id is not None:
+            queryset = queryset.filter(property_id=property_id)
+        return queryset

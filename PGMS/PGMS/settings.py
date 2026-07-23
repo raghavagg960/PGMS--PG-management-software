@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'guests',
     'staff',
     'rooms',
+    'notifications',
+    
 
 ]
 
