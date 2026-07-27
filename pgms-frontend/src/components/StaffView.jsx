@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserCheck, UserPlus, Building2, Phone, IndianRupee, Shield, Utensils, Brush, ShieldAlert, User, Check, X } from 'lucide-react';
+import { UserCheck, UserPlus, Building2, Phone, IndianRupee, Shield, Utensils, Brush, ShieldAlert, User, Check, X, Edit3, Trash2 } from 'lucide-react';
 import API from '../api/axios';
 
 export default function StaffView() {
@@ -9,8 +9,11 @@ export default function StaffView() {
     const [error, setError] = useState('');
     const [selectedPropertyFilter, setSelectedPropertyFilter] = useState('all');
 
+    // Modal States: Onboarding vs Editing
     const [showModal, setShowModal] = useState(false);
-    const [newStaff, setNewStaff] = useState({
+    const [editingStaff, setEditingStaff] = useState(null); // Active staff being edited
+
+    const [staffForm, setStaffForm] = useState({
         property: '',
         name: '',
         role: 'warden',
@@ -34,7 +37,7 @@ export default function StaffView() {
             } catch (err) {
                 if (isMounted) {
                     setError('Failed to fetch staff records and properties.');
-                    console.error(err);
+                    console.error('Error loading staff:', err);
                 }
             } finally {
                 if (isMounted) setLoading(false);
@@ -62,42 +65,90 @@ export default function StaffView() {
         }
     };
 
-    const handleCreate = async (e) => {
+    const handleOpenCreate = () => {
+        setEditingStaff(null);
+        setStaffForm({
+            property: properties[0]?.id ? String(properties[0].id) : '',
+            name: '',
+            role: 'warden',
+            phone: '',
+            salary: '',
+            is_active: true
+        });
+        setShowModal(true);
+    };
+
+    const handleOpenEdit = (staffMember) => {
+        setEditingStaff(staffMember);
+        const propId = typeof staffMember.property === 'object' && staffMember.property !== null ? staffMember.property.id : staffMember.property;
+
+        setStaffForm({
+            property: propId ? String(propId) : '',
+            name: staffMember.name || '',
+            role: staffMember.role || 'warden',
+            phone: staffMember.phone || '',
+            salary: staffMember.salary || '',
+            is_active: staffMember.is_active ?? true
+        });
+        setShowModal(true);
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!newStaff.property || !newStaff.name || !newStaff.phone || !newStaff.salary) return;
+        if (!staffForm.property || !staffForm.name || !staffForm.phone || !staffForm.salary) return;
 
         try {
             const payload = {
-                property: parseInt(newStaff.property),
-                name: newStaff.name,
-                role: newStaff.role,
-                phone: newStaff.phone,
-                salary: parseFloat(newStaff.salary),
-                is_active: newStaff.is_active
+                property: parseInt(staffForm.property),
+                name: staffForm.name,
+                role: staffForm.role,
+                phone: staffForm.phone,
+                salary: parseFloat(staffForm.salary),
+                is_active: staffForm.is_active
             };
 
-            await API.post('staff/', payload);
+            if (editingStaff) {
+                // UPDATE existing staff
+                await API.put(`staff/${editingStaff.id}/`, payload);
+            } else {
+                // CREATE new staff
+                await API.post('staff/', payload);
+            }
 
-            // Re-fetch updated list
             const updatedStaff = await API.get('staff/');
             setStaffList(updatedStaff.data);
-
-            setNewStaff({ property: '', name: '', role: 'warden', phone: '', salary: '', is_active: true });
             setShowModal(false);
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to onboard staff member.');
+            console.error('Error saving staff record:', err);
+            alert(err.response?.data?.message || 'Failed to save staff details.');
         }
     };
 
-    const toggleStatus = async (staffMember) => {
+    const toggleStatus = async (e, staffMember) => {
+        e.stopPropagation(); // Prevents card click event from opening modal when toggling
         try {
             const updatedStatus = !staffMember.is_active;
             await API.patch(`staff/${staffMember.id}/`, { is_active: updatedStatus });
             
             setStaffList(staffList.map(s => s.id === staffMember.id ? { ...s, is_active: updatedStatus } : s));
         } catch (err) {
-            console.error('Error updating staff status:', err);
+            console.error('Error toggling status:', err);
             alert('Could not update staff status.');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!editingStaff) return;
+        if (!window.confirm(`Are you sure you want to delete ${editingStaff.name}?`)) return;
+
+        try {
+            await API.delete(`staff/${editingStaff.id}/`);
+            const updatedStaff = await API.get('staff/');
+            setStaffList(updatedStaff.data);
+            setShowModal(false);
+        } catch (err) {
+            console.error('Error deleting staff record:', err);
+            alert('Failed to delete staff entry.');
         }
     };
 
@@ -110,7 +161,7 @@ export default function StaffView() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Staff Management Portal</h1>
-                    <p className="text-slate-500 text-sm mt-0.5">Manage wardens, kitchen team, housekeeping, and security staff.</p>
+                    <p className="text-slate-500 text-sm mt-0.5">Click any staff card to edit designation, adjust salary, or update assigned building.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -130,7 +181,7 @@ export default function StaffView() {
                     </div>
 
                     <button
-                        onClick={() => setShowModal(true)}
+                        onClick={handleOpenCreate}
                         className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                     >
                         <UserPlus className="w-4 h-4" />
@@ -152,15 +203,22 @@ export default function StaffView() {
                         const matchedProperty = properties.find(p => p.id === (typeof staff.property === 'object' ? staff.property?.id : staff.property));
 
                         return (
-                            <div key={staff.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between">
+                            <div 
+                                key={staff.id} 
+                                onClick={() => handleOpenEdit(staff)}
+                                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all p-5 flex flex-col justify-between cursor-pointer group relative"
+                            >
                                 <div className="space-y-4">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="flex items-center gap-2.5">
-                                            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 group-hover:bg-indigo-50 transition-colors">
                                                 {getRoleIcon(staff.role)}
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-slate-800 text-lg">{staff.name}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">{staff.name}</h3>
+                                                    <Edit3 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
                                                 <span className="text-xs font-semibold text-slate-500">
                                                     {staff.role_display || staff.role}
                                                 </span>
@@ -168,7 +226,8 @@ export default function StaffView() {
                                         </div>
 
                                         <button
-                                            onClick={() => toggleStatus(staff)}
+                                            type="button"
+                                            onClick={(e) => toggleStatus(e, staff)}
                                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold cursor-pointer transition-colors ${
                                                 staff.is_active 
                                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100' 
@@ -206,22 +265,38 @@ export default function StaffView() {
                 </div>
             )}
 
-            {/* Onboarding Modal */}
+            {/* Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="font-bold text-slate-800 text-lg">Onboard Staff Member</h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-medium text-sm cursor-pointer">✕</button>
+                            <h2 className="font-bold text-slate-800 text-lg">
+                                {editingStaff ? `Edit Details: ${editingStaff.name}` : 'Onboard Staff Member'}
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                {editingStaff && (
+                                    <button 
+                                        type="button" 
+                                        onClick={handleDelete}
+                                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                        title="Delete Staff Entry"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
+                                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-medium text-sm cursor-pointer">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleCreate} className="p-5 space-y-4">
+                        <form onSubmit={handleSubmit} className="p-5 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Target PG Building</label>
                                 <select 
                                     required
-                                    value={newStaff.property}
-                                    onChange={e => setNewStaff({ ...newStaff, property: e.target.value })}
+                                    value={staffForm.property}
+                                    onChange={e => setStaffForm({ ...staffForm, property: e.target.value })}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                                 >
                                     <option value="">-- Choose PG Building --</option>
@@ -234,16 +309,16 @@ export default function StaffView() {
                                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Full Name</label>
                                     <input 
                                         type="text" required placeholder="e.g. Ramesh Kumar"
-                                        value={newStaff.name}
-                                        onChange={e => setNewStaff({ ...newStaff, name: e.target.value })}
+                                        value={staffForm.name}
+                                        onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Designation / Role</label>
                                     <select 
-                                        value={newStaff.role}
-                                        onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}
+                                        value={staffForm.role}
+                                        onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                                     >
                                         <option value="warden">Warden</option>
@@ -260,8 +335,8 @@ export default function StaffView() {
                                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Phone Number</label>
                                     <input 
                                         type="text" required placeholder="e.g. 9876543210"
-                                        value={newStaff.phone}
-                                        onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
+                                        value={staffForm.phone}
+                                        onChange={e => setStaffForm({ ...staffForm, phone: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
@@ -269,8 +344,8 @@ export default function StaffView() {
                                     <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Monthly Salary (₹)</label>
                                     <input 
                                         type="number" required placeholder="15000"
-                                        value={newStaff.salary}
-                                        onChange={e => setNewStaff({ ...newStaff, salary: e.target.value })}
+                                        value={staffForm.salary}
+                                        onChange={e => setStaffForm({ ...staffForm, salary: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
@@ -278,7 +353,9 @@ export default function StaffView() {
 
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer">Cancel</button>
-                                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm cursor-pointer">Onboard Staff</button>
+                                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm cursor-pointer">
+                                    {editingStaff ? 'Save Changes' : 'Onboard Staff'}
+                                </button>
                             </div>
                         </form>
                     </div>

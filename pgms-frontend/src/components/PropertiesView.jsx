@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, MapPin, Layers, BedDouble, Users } from 'lucide-react';
+import { Building2, Plus, MapPin, Layers, BedDouble, Users, Edit3, X, Trash2 } from 'lucide-react';
 import API from '../api/axios';
 
 export default function PropertiesView() {
     const [properties, setProperties] = useState([]);
-    // Initialized to true by default, so no immediate setter call is needed on mount
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     
+    // Modal states: Create vs Edit
     const [showModal, setShowModal] = useState(false);
-    const [newProp, setNewProp] = useState({ 
+    const [editingProperty, setEditingProperty] = useState(null);
+
+    const [propForm, setPropForm] = useState({ 
         name: '', 
         address: '', 
         total_floors: '1', 
@@ -29,7 +31,7 @@ export default function PropertiesView() {
             } catch (err) {
                 if (isMounted) {
                     setError('Failed to retrieve managed properties from the database.');
-                    console.error(err);
+                    console.error('Error fetching properties:', err);
                 }
             } finally {
                 if (isMounted) {
@@ -40,30 +42,72 @@ export default function PropertiesView() {
 
         fetchProperties();
 
-        // Cleanup function to prevent setting state on an unmounted component
         return () => {
             isMounted = false;
         };
     }, []);
 
-    const handleCreate = async (e) => {
+    const handleOpenCreate = () => {
+        setEditingProperty(null);
+        setPropForm({ name: '', address: '', total_floors: '1', total_rooms: '0', total_beds: '0' });
+        setShowModal(true);
+    };
+
+    const handleOpenEdit = (property) => {
+        setEditingProperty(property);
+        setPropForm({
+            name: property.name || '',
+            address: property.address || '',
+            total_floors: String(property.total_floors ?? 1),
+            total_rooms: String(property.total_rooms ?? 0),
+            total_beds: String(property.total_beds ?? 0)
+        });
+        setShowModal(true);
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!newProp.name || !newProp.address) return;
+        if (!propForm.name || !propForm.address) return;
         
         try {
-            const response = await API.post('properties/', {
-                name: newProp.name,
-                address: newProp.address,
-                total_floors: parseInt(newProp.total_floors) || 1,
-                total_rooms: parseInt(newProp.total_rooms) || 0,
-                total_beds: parseInt(newProp.total_beds) || 0
-            });
-            
-            setProperties([...properties, response.data]);
-            setNewProp({ name: '', address: '', total_floors: '1', total_rooms: '0', total_beds: '0' });
+            const payload = {
+                name: propForm.name,
+                address: propForm.address,
+                total_floors: parseInt(propForm.total_floors) || 1,
+                total_rooms: parseInt(propForm.total_rooms) || 0,
+                total_beds: parseInt(propForm.total_beds) || 0
+            };
+
+            if (editingProperty) {
+                // UPDATE existing property
+                await API.put(`properties/${editingProperty.id}/`, payload);
+            } else {
+                // CREATE new property
+                await API.post('properties/', payload);
+            }
+
+            // Re-fetch list to sync data across app
+            const response = await API.get('properties/');
+            setProperties(response.data);
             setShowModal(false);
         } catch (err) {
+            console.error('Error saving property asset:', err);
             alert(err.response?.data?.message || 'Could not save property asset to database.');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!editingProperty) return;
+        if (!window.confirm(`Are you sure you want to delete ${editingProperty.name}? This will affect associated rooms and tenants.`)) return;
+
+        try {
+            await API.delete(`properties/${editingProperty.id}/`);
+            const response = await API.get('properties/');
+            setProperties(response.data);
+            setShowModal(false);
+        } catch (err) {
+            console.error('Error deleting property:', err);
+            alert('Failed to delete property.');
         }
     };
 
@@ -76,10 +120,10 @@ export default function PropertiesView() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Properties Workspace</h1>
-                    <p className="text-slate-500 text-sm mt-0.5">Oversee, configure, and provision your managed real estate assets.</p>
+                    <p className="text-slate-500 text-sm mt-0.5">Click any property card to update structure, add floors, or modify asset details.</p>
                 </div>
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={handleOpenCreate}
                     className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer self-start sm:self-auto"
                 >
                     <Plus className="w-4 h-4" />
@@ -102,10 +146,14 @@ export default function PropertiesView() {
                             : 0;
 
                         return (
-                            <div key={property.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden group">
+                            <div 
+                                key={property.id} 
+                                onClick={() => handleOpenEdit(property)}
+                                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col justify-between overflow-hidden group cursor-pointer"
+                            >
                                 <div className="p-5">
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                                             <Building2 className="w-6 h-6" />
                                         </div>
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wider">
@@ -114,11 +162,13 @@ export default function PropertiesView() {
                                     </div>
 
                                     <div className="mt-4">
-                                        <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors line-clamp-1">
-                                            {property.name}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors line-clamp-1">
+                                                {property.name}
+                                            </h3>
+                                            <Edit3 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                        </div>
                                         <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-1">
-                                            {/* 🚨 FIXED: Changed flex-shrink-0 to shrink-0 */}
                                             <MapPin className="w-4 h-4 shrink-0" />
                                             <span className="line-clamp-1">{property.address}</span>
                                         </div>
@@ -143,7 +193,7 @@ export default function PropertiesView() {
                                                 <Users className="w-3 h-3" /> Beds
                                             </p>
                                             <p className="text-sm font-semibold text-slate-700 mt-0.5">
-                                                {property.occupied_beds}/{property.total_beds}
+                                                {property.occupied_beds || 0}/{property.total_beds}
                                             </p>
                                         </div>
                                     </div>
@@ -168,23 +218,40 @@ export default function PropertiesView() {
                 </div>
             )}
 
-            {/* Intake Form Modal Shell */}
+            {/* Modal Shell */}
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                            <h2 className="font-bold text-slate-800 text-lg">Add New Building</h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-medium text-sm cursor-pointer">✕</button>
+                            <h2 className="font-bold text-slate-800 text-lg">
+                                {editingProperty ? `Edit ${editingProperty.name}` : 'Add New Building'}
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                {editingProperty && (
+                                    <button 
+                                        type="button" 
+                                        onClick={handleDelete}
+                                        className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                        title="Delete Property Asset"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
+                                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-medium text-sm cursor-pointer">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
-                        <form onSubmit={handleCreate} className="p-5 space-y-4">
+
+                        <form onSubmit={handleSubmit} className="p-5 space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Property Name</label>
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Royal Living Hub"
                                     required
-                                    value={newProp.name}
-                                    onChange={e => setNewProp({...newProp, name: e.target.value})}
+                                    value={propForm.name}
+                                    onChange={e => setPropForm({...propForm, name: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                 />
                             </div>
@@ -194,8 +261,8 @@ export default function PropertiesView() {
                                     type="text" 
                                     placeholder="e.g. Sector 3, Rewari"
                                     required
-                                    value={newProp.address}
-                                    onChange={e => setNewProp({...newProp, address: e.target.value})}
+                                    value={propForm.address}
+                                    onChange={e => setPropForm({...propForm, address: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                 />
                             </div>
@@ -206,8 +273,8 @@ export default function PropertiesView() {
                                         type="number" 
                                         required
                                         min="1"
-                                        value={newProp.total_floors}
-                                        onChange={e => setNewProp({...newProp, total_floors: e.target.value})}
+                                        value={propForm.total_floors}
+                                        onChange={e => setPropForm({...propForm, total_floors: e.target.value})}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
@@ -216,8 +283,8 @@ export default function PropertiesView() {
                                     <input 
                                         type="number" 
                                         min="0"
-                                        value={newProp.total_rooms}
-                                        onChange={e => setNewProp({...newProp, total_rooms: e.target.value})}
+                                        value={propForm.total_rooms}
+                                        onChange={e => setPropForm({...propForm, total_rooms: e.target.value})}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
@@ -226,15 +293,17 @@ export default function PropertiesView() {
                                     <input 
                                         type="number" 
                                         min="0"
-                                        value={newProp.total_beds}
-                                        onChange={e => setNewProp({...newProp, total_beds: e.target.value})}
+                                        value={propForm.total_beds}
+                                        onChange={e => setPropForm({...propForm, total_beds: e.target.value})}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer">Cancel</button>
-                                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm cursor-pointer">Provision Asset</button>
+                                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm cursor-pointer">
+                                    {editingProperty ? 'Save Changes' : 'Provision Asset'}
+                                </button>
                             </div>
                         </form>
                     </div>

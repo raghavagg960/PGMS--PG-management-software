@@ -19,5 +19,11 @@ class Guest(models.Model):
     move_in_date = models.DateField()
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='active')
 
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    deposit_refunded = models.BooleanField(default=False)
+    move_in_date = models.DateField()
+    move_out_date = models.DateField(null=True, blank=True)  # Populated when moved out
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='active')
+
     def __str__(self):
         return f"{self.name} ({self.status})"

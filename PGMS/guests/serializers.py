@@ -8,7 +8,8 @@ class GuestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'property', 'room', 'name', 'phone', 
             'hometown_address', 'organization', 'monthly_rent', 
-            'move_in_date', 'status'
+            'security_deposit', 'deposit_refunded', 'move_in_date', 
+            'move_out_date', 'status'
         ]
 
 class GuestMinimalSerializer(serializers.ModelSerializer):
