@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, MapPin, Layers, BedDouble, Users, Edit3, X, Trash2 } from 'lucide-react';
+import { Building2, Plus, MapPin, Layers, BedDouble, Users, Edit3, X, Trash2, Shield } from 'lucide-react';
 import API from '../api/axios';
 
 export default function PropertiesView() {
     const [properties, setProperties] = useState([]);
+    const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     
@@ -22,16 +23,22 @@ export default function PropertiesView() {
     useEffect(() => {
         let isMounted = true;
 
-        const fetchProperties = async () => {
+        const fetchData = async () => {
             try {
-                const response = await API.get('properties/');
+                // Fetch logged-in user role & property data concurrently
+                const [userRes, propRes] = await Promise.all([
+                    API.get('auth/me/'),
+                    API.get('properties/')
+                ]);
+
                 if (isMounted) {
-                    setProperties(response.data);
+                    setCurrentUser(userRes.data);
+                    setProperties(propRes.data);
                 }
             } catch (err) {
                 if (isMounted) {
                     setError('Failed to retrieve managed properties from the database.');
-                    console.error('Error fetching properties:', err);
+                    console.error('Error fetching data:', err);
                 }
             } finally {
                 if (isMounted) {
@@ -40,20 +47,25 @@ export default function PropertiesView() {
             }
         };
 
-        fetchProperties();
+        fetchData();
 
         return () => {
             isMounted = false;
         };
     }, []);
 
+    // Check if the current user is a staff member / warden
+    const isOwner = currentUser?.is_owner ?? true;
+
     const handleOpenCreate = () => {
+        if (!isOwner) return;
         setEditingProperty(null);
         setPropForm({ name: '', address: '', total_floors: '1', total_rooms: '0', total_beds: '0' });
         setShowModal(true);
     };
 
     const handleOpenEdit = (property) => {
+        if (!isOwner) return; // Prevent staff from opening edit modal
         setEditingProperty(property);
         setPropForm({
             name: property.name || '',
@@ -67,7 +79,7 @@ export default function PropertiesView() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!propForm.name || !propForm.address) return;
+        if (!isOwner || !propForm.name || !propForm.address) return;
         
         try {
             const payload = {
@@ -79,26 +91,23 @@ export default function PropertiesView() {
             };
 
             if (editingProperty) {
-                // UPDATE existing property
                 await API.put(`properties/${editingProperty.id}/`, payload);
             } else {
-                // CREATE new property
                 await API.post('properties/', payload);
             }
 
-            // Re-fetch list to sync data across app
             const response = await API.get('properties/');
             setProperties(response.data);
             setShowModal(false);
         } catch (err) {
             console.error('Error saving property asset:', err);
-            alert(err.response?.data?.message || 'Could not save property asset to database.');
+            alert(err.response?.data?.detail || err.response?.data?.message || 'Could not save property asset.');
         }
     };
 
     const handleDelete = async () => {
-        if (!editingProperty) return;
-        if (!window.confirm(`Are you sure you want to delete ${editingProperty.name}? This will affect associated rooms and tenants.`)) return;
+        if (!isOwner || !editingProperty) return;
+        if (!window.confirm(`Are you sure you want to delete ${editingProperty.name}? This will affect associated rooms and guests.`)) return;
 
         try {
             await API.delete(`properties/${editingProperty.id}/`);
@@ -117,18 +126,34 @@ export default function PropertiesView() {
     return (
         <div className="space-y-6 font-sans">
             {/* Action Header Control Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Properties Workspace</h1>
-                    <p className="text-slate-500 text-sm mt-0.5">Click any property card to update structure, add floors, or modify asset details.</p>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-bold text-slate-800">Properties Workspace</h1>
+                        {!isOwner && (
+                            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                                <Shield className="w-3 h-3" /> {currentUser?.role_display || 'Staff View'}
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-slate-500 text-sm mt-0.5">
+                        {isOwner 
+                            ? 'Click any property card to update structure, add floors, or modify asset details.'
+                            : 'Assigned PG Property scope for your account.'
+                        }
+                    </p>
                 </div>
-                <button
-                    onClick={handleOpenCreate}
-                    className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer self-start sm:self-auto"
-                >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Property</span>
-                </button>
+
+                {/* Only display "Add Property" button if user is an Owner */}
+                {isOwner && (
+                    <button
+                        onClick={handleOpenCreate}
+                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-xs cursor-pointer self-start sm:self-auto"
+                    >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Property</span>
+                    </button>
+                )}
             </div>
 
             {/* Dynamic Real Estate Grid */}
@@ -136,7 +161,9 @@ export default function PropertiesView() {
                 <div className="text-center bg-white border border-slate-200 rounded-xl p-12">
                     <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                     <h3 className="text-lg font-semibold text-slate-700">No properties provisioned yet</h3>
-                    <p className="text-slate-400 text-sm mt-1">Click the button above to add your first building asset.</p>
+                    <p className="text-slate-400 text-sm mt-1">
+                        {isOwner ? 'Click the button above to add your first building asset.' : 'No property has been assigned to your account.'}
+                    </p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -148,8 +175,10 @@ export default function PropertiesView() {
                         return (
                             <div 
                                 key={property.id} 
-                                onClick={() => handleOpenEdit(property)}
-                                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex flex-col justify-between overflow-hidden group cursor-pointer"
+                                onClick={() => isOwner && handleOpenEdit(property)}
+                                className={`bg-white rounded-xl border border-slate-200 shadow-xs transition-all flex flex-col justify-between overflow-hidden group ${
+                                    isOwner ? 'hover:shadow-md hover:border-indigo-200 cursor-pointer' : 'cursor-default'
+                                }`}
                             >
                                 <div className="p-5">
                                     <div className="flex items-start justify-between gap-4">
@@ -166,7 +195,9 @@ export default function PropertiesView() {
                                             <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors line-clamp-1">
                                                 {property.name}
                                             </h3>
-                                            <Edit3 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                            {isOwner && (
+                                                <Edit3 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-slate-400 text-sm mt-1">
                                             <MapPin className="w-4 h-4 shrink-0" />
@@ -174,7 +205,7 @@ export default function PropertiesView() {
                                         </div>
                                     </div>
 
-                                    {/* 3 Grid Core Columns Layout */}
+                                    {/* Core Metrics Columns */}
                                     <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-100 text-center">
                                         <div>
                                             <p className="text-xs text-slate-400 font-medium flex justify-center gap-1 items-center">
@@ -218,8 +249,8 @@ export default function PropertiesView() {
                 </div>
             )}
 
-            {/* Modal Shell */}
-            {showModal && (
+            {/* Modal Shell (Only accessible to Owners) */}
+            {showModal && isOwner && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden">
                         <div className="p-5 border-b border-slate-100 flex items-center justify-between">

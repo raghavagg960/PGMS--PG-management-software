@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User 
 
 # Create your models here.
 from django.db import models
@@ -11,8 +12,16 @@ class Staff(models.Model):
         ('security', 'Security Guard'),
         ('other', 'Other Support Staff'),
     ]
-    
-    # Clean cross-app link to properties app
+
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name="staff_profile"
+    )
+
+    email = models.EmailField(max_length=255, blank=True, null=True)
     property = models.ForeignKey('properties.PGProperty', on_delete=models.CASCADE, related_name="staff")
     name = models.CharField(max_length=100)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { UserCheck, UserPlus, Building2, Phone, IndianRupee, Shield, Utensils, Brush, ShieldAlert, User, Check, X, Edit3, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UserCheck, UserPlus, Building2, Phone, IndianRupee, Shield, Utensils, Brush, ShieldAlert, User, Check, X, Edit3, Trash2, KeyRound, Mail } from 'lucide-react';
 import API from '../api/axios';
 
 export default function StaffView() {
@@ -11,11 +11,12 @@ export default function StaffView() {
 
     // Modal States: Onboarding vs Editing
     const [showModal, setShowModal] = useState(false);
-    const [editingStaff, setEditingStaff] = useState(null); // Active staff being edited
+    const [editingStaff, setEditingStaff] = useState(null);
 
     const [staffForm, setStaffForm] = useState({
         property: '',
         name: '',
+        email: '',
         role: 'warden',
         phone: '',
         salary: '',
@@ -70,6 +71,7 @@ export default function StaffView() {
         setStaffForm({
             property: properties[0]?.id ? String(properties[0].id) : '',
             name: '',
+            email: '',
             role: 'warden',
             phone: '',
             salary: '',
@@ -85,6 +87,7 @@ export default function StaffView() {
         setStaffForm({
             property: propId ? String(propId) : '',
             name: staffMember.name || '',
+            email: staffMember.email || '',
             role: staffMember.role || 'warden',
             phone: staffMember.phone || '',
             salary: staffMember.salary || '',
@@ -101,6 +104,7 @@ export default function StaffView() {
             const payload = {
                 property: parseInt(staffForm.property),
                 name: staffForm.name,
+                email: staffForm.email,
                 role: staffForm.role,
                 phone: staffForm.phone,
                 salary: parseFloat(staffForm.salary),
@@ -108,10 +112,8 @@ export default function StaffView() {
             };
 
             if (editingStaff) {
-                // UPDATE existing staff
                 await API.put(`staff/${editingStaff.id}/`, payload);
             } else {
-                // CREATE new staff
                 await API.post('staff/', payload);
             }
 
@@ -125,7 +127,7 @@ export default function StaffView() {
     };
 
     const toggleStatus = async (e, staffMember) => {
-        e.stopPropagation(); // Prevents card click event from opening modal when toggling
+        e.stopPropagation();
         try {
             const updatedStatus = !staffMember.is_active;
             await API.patch(`staff/${staffMember.id}/`, { is_active: updatedStatus });
@@ -139,7 +141,7 @@ export default function StaffView() {
 
     const handleDelete = async () => {
         if (!editingStaff) return;
-        if (!window.confirm(`Are you sure you want to delete ${editingStaff.name}?`)) return;
+        if (!window.confirm(`Are you sure you want to delete ${editingStaff.name}? This will also remove their user login account.`)) return;
 
         try {
             await API.delete(`staff/${editingStaff.id}/`);
@@ -158,14 +160,13 @@ export default function StaffView() {
     return (
         <div className="space-y-6 font-sans">
             {/* Header Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Staff Management Portal</h1>
-                    <p className="text-slate-500 text-sm mt-0.5">Click any staff card to edit designation, adjust salary, or update assigned building.</p>
+                    <p className="text-slate-500 text-sm mt-0.5">Manage staff onboarding, credentials, salary structures, and assigned PG buildings.</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    {/* Property Filter Dropdown */}
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
                         <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
                         <select
@@ -182,7 +183,7 @@ export default function StaffView() {
 
                     <button
                         onClick={handleOpenCreate}
-                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-xs cursor-pointer whitespace-nowrap"
                     >
                         <UserPlus className="w-4 h-4" />
                         <span>Onboard Staff</span>
@@ -190,7 +191,7 @@ export default function StaffView() {
                 </div>
             </div>
 
-            {/* Staff Grid */}
+            {/* Staff Cards Grid */}
             {filteredStaff.length === 0 ? (
                 <div className="text-center bg-white border border-slate-200 rounded-xl p-12">
                     <UserCheck className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -206,7 +207,7 @@ export default function StaffView() {
                             <div 
                                 key={staff.id} 
                                 onClick={() => handleOpenEdit(staff)}
-                                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all p-5 flex flex-col justify-between cursor-pointer group relative"
+                                className="bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-200 transition-all p-5 flex flex-col justify-between cursor-pointer group relative"
                             >
                                 <div className="space-y-4">
                                     <div className="flex items-start justify-between gap-2">
@@ -248,6 +249,20 @@ export default function StaffView() {
                                             <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> Contact Phone:</span>
                                             <span className="font-semibold text-slate-800">{staff.phone}</span>
                                         </div>
+                                        <div className="flex items-center justify-between text-slate-600">
+                                            <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> Email:</span>
+                                            <span className="font-semibold text-slate-800 truncate max-w-[160px]">{staff.email || 'N/A'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Login Credentials Info Card */}
+                                    <div className="flex items-center justify-between text-xs bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-100/80">
+                                        <span className="text-indigo-900 font-medium flex items-center gap-1">
+                                            <KeyRound className="w-3.5 h-3.5 text-indigo-600" /> Username:
+                                        </span>
+                                        <span className="font-bold text-indigo-700">
+                                            {staff.username || staff.phone}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -321,7 +336,7 @@ export default function StaffView() {
                                         onChange={e => setStaffForm({ ...staffForm, role: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                                     >
-                                        <option value="warden">Warden</option>
+                                        <option value="warden">Warden / Manager</option>
                                         <option value="cook">Cook / Kitchen Staff</option>
                                         <option value="cleaner">Cleaning / Housekeeping</option>
                                         <option value="security">Security Guard</option>
@@ -330,9 +345,19 @@ export default function StaffView() {
                                 </div>
                             </div>
 
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Email Address (For Password Resets)</label>
+                                <input 
+                                    type="email" placeholder="e.g. ramesh@gmail.com"
+                                    value={staffForm.email}
+                                    onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Phone Number</label>
+                                    <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Phone (Login Username)</label>
                                     <input 
                                         type="text" required placeholder="e.g. 9876543210"
                                         value={staffForm.phone}
@@ -350,6 +375,12 @@ export default function StaffView() {
                                     />
                                 </div>
                             </div>
+
+                            {!editingStaff && (
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
+                                    💡 <strong>Login Credentials:</strong> A user login account will automatically be created for this staff member using their phone number as the username and default password <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded">Staff@1234</code>.
+                                </div>
+                            )}
 
                             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer">Cancel</button>
