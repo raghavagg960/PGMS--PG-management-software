@@ -1,10 +1,12 @@
 from rest_framework import viewsets, permissions, exceptions
+
 from .models import Room
 from .serializers import RoomSerializer
+from staff.permissions import IsOwnerOrWarden
 
 class RoomViewSet(viewsets.ModelViewSet):
     serializer_class = RoomSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrWarden]
 
     def get_queryset(self):
         user = self.request.user

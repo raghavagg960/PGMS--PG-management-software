@@ -1,11 +1,13 @@
 from rest_framework import viewsets, exceptions
 from rest_framework.permissions import IsAuthenticated
+
 from .models import Guest
 from .serializers import GuestSerializer
+from staff.permissions import IsOwnerOrWarden
 
 class GuestViewSet(viewsets.ModelViewSet):
     serializer_class = GuestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrWarden]
 
     def get_queryset(self):
         user = self.request.user

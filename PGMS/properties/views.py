@@ -8,6 +8,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import PGProperty
 from .serializers import OwnerRegistrationSerializer, PGPropertySerializer
+from staff.permissions import IsOwnerOrWarden
 
 # Public Authentication Handlers
 class RegisterOwnerView(generics.CreateAPIView):
@@ -15,31 +16,44 @@ class RegisterOwnerView(generics.CreateAPIView):
     serializer_class = OwnerRegistrationSerializer
     permission_classes = [AllowAny]
 
+
 class CustomLoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     class CustomSerializer(TokenObtainPairSerializer):
         def validate(self, attrs):
             data = super().validate(attrs)
 
-            # Safely extract profiles without throwing RelatedObjectDoesNotExist
             owner_profile = getattr(self.user, 'profile', None)
             staff_profile = getattr(self.user, 'staff_profile', None)
 
-            # Resolve mobile number depending on account type
+            # Resolve mobile number
             mobile_number = None
             if owner_profile:
                 mobile_number = getattr(owner_profile, 'mobile_number', None)
             elif staff_profile:
                 mobile_number = staff_profile.phone
 
+            # Resolve assigned property for staff
+            assigned_property_id = None
+            assigned_property_name = None
+            if staff_profile and staff_profile.property:
+                assigned_property_id = staff_profile.property.id
+                assigned_property_name = staff_profile.property.name
+
+            full_name = f"{self.user.first_name} {self.user.last_name}".strip()
+
             data['user'] = {
                 'id': self.user.id,
+                'username': self.user.username,
+                'name': full_name if full_name else self.user.username,
                 'first_name': self.user.first_name,
                 'last_name': self.user.last_name,
                 'email': self.user.email,
                 'mobile_number': mobile_number,
                 'role': staff_profile.role if staff_profile else 'owner',
                 'is_staff_member': staff_profile is not None,
+                'assigned_property_id': assigned_property_id,
+                'assigned_property_name': assigned_property_name,
             }
             return data
     serializer_class = CustomSerializer
@@ -47,7 +61,7 @@ class CustomLoginView(TokenObtainPairView):
 # ViewSet exclusively for the Property container
 class PGPropertyViewSet(viewsets.ModelViewSet):
     serializer_class = PGPropertySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrWarden]
 
     def get_queryset(self):
         user = self.request.user

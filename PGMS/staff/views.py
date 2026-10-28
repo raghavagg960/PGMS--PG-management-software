@@ -2,15 +2,21 @@ from django.contrib.auth.models import User
 
 from rest_framework import viewsets
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 
 from .models import Staff
 from .serializers import StaffSerializer
 
+class IsOwnerOnly(BasePermission):
+    message = "Only the property owner can manage staff."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and not hasattr(request.user, 'staff_profile')
+
 class StaffViewSet(viewsets.ModelViewSet):
     serializer_class = StaffSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOnly]
 
     def get_queryset(self):
         user = self.request.user
@@ -45,20 +51,35 @@ class StaffViewSet(viewsets.ModelViewSet):
 
         serializer.save(user=user_account)
 
+
+
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        is_staff_member = hasattr(user, 'staff_profile')
-        
+        staff_profile = getattr(user, 'staff_profile', None)
+        is_staff_member = staff_profile is not None
+
+        assigned_property_id = None
+        assigned_property_name = None
+        if staff_profile and staff_profile.property:
+            assigned_property_id = staff_profile.property.id
+            assigned_property_name = staff_profile.property.name
+
+        full_name = f"{user.first_name} {user.last_name}".strip()
+
         data = {
             'id': user.id,
             'username': user.username,
+            'name': full_name if full_name else user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
             'email': user.email,
             'is_owner': not is_staff_member,
-            'role': user.staff_profile.role if is_staff_member else 'owner',
-            'assigned_property_id': user.staff_profile.property.id if is_staff_member else None,
-            'assigned_property_name': user.staff_profile.property.name if is_staff_member else 'All Properties',
+            'role': staff_profile.role if is_staff_member else 'owner',
+            'is_staff_member': is_staff_member,
+            'assigned_property_id': assigned_property_id,
+            'assigned_property_name': assigned_property_name,
         }
         return Response(data)
